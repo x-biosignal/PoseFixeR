@@ -1,0 +1,32 @@
+Package: PoseFixeR
+Type: Package
+Title: Anomaly Detection and Correction for OpenPose Gait Analysis
+Version: 0.2.1
+Authors@R: c(
+    person(given = "Yusuke", family = "Matsui",
+           email = "mail.to.matsui@gmail.com", role = c("aut", "cre"),
+           comment = "corresponding author and lead developer"),
+    person(given = "Yuki", family = "Sugiyama", role = "aut"),
+    person(given = "Kohei", family = "Uno", role = "aut"))
+Description: Detects and corrects the anatomical, biomechanical, physical, and
+    detection-confidence anomalies that arise in two-dimensional video-based gait
+    analysis with OpenPose, then imputes and smooths the corrected keypoint
+    trajectories. Implements the method of Sugiyama, Uno and Matsui (2023)
+    <doi:10.1371/journal.pcbi.1009989>.
+License: GPL-3
+URL: https://github.com/x-biosignal/PoseFixeR, https://x-biosignal.r-universe.dev/PoseFixeR, https://x-biosignal.github.io/PoseFixeR
+BugReports: https://github.com/x-biosignal/PoseFixeR/issues
+Encoding: UTF-8
+Imports:
+    stats,
+    imputeTS,
+    graphics,
+    rjson
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Config/testthat/edition: 3

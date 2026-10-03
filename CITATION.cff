@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the article below."
+title: "PoseFixeR: Anomaly Detection and Correction for OpenPose Gait Analysis"
+type: software
+authors:
+  - family-names: Matsui
+    given-names: Yusuke
+    email: mail.to.matsui@gmail.com
+  - family-names: Sugiyama
+    given-names: Yuki
+  - family-names: Uno
+    given-names: Kohei
+version: 0.2.0
+license: GPL-3.0
+repository-code: "https://github.com/x-biosignal/PoseFixeR"
+url: "https://x-biosignal.github.io/PoseFixeR/"
+preferred-citation:
+  type: article
+  title: "Types of anomalies in two-dimensional video-based gait analysis in uncontrolled environments"
+  authors:
+    - family-names: Sugiyama
+      given-names: Yuki
+    - family-names: Uno
+      given-names: Kohei
+    - family-names: Matsui
+      given-names: Yusuke
+  journal: "PLOS Computational Biology"
+  year: 2023
+  volume: 19
+  doi: "10.1371/journal.pcbi.1009989"

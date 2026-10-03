@@ -1,0 +1,145 @@
+---
+title: "Cleaning OpenPose gait keypoints with PoseFixeR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Cleaning OpenPose gait keypoints with PoseFixeR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4)
+```
+
+```{r setup}
+library(PoseFixeR)
+```
+
+`PoseFixeR` cleans two-dimensional, video-based gait recordings produced by
+[OpenPose](https://github.com/CMU-Perceptual-Computing-Lab/openpose). In an
+uncontrolled filming environment the pose estimator makes mistakes --- it swaps
+the left and right leg, produces anatomically impossible segment lengths or
+joint angles, jumps between frames, or reports low-confidence detections.
+`posefixer()` detects those anomalies, removes the offending keypoints, and then
+imputes and smooths the trajectories. This vignette walks through the whole
+workflow on a small **synthetic** recording so it runs offline in a few seconds;
+with real data you would simply point `import_json()` at your OpenPose output.
+
+## A synthetic recording
+
+OpenPose writes one JSON file per video frame. The reader in this package
+expects each file to hold a flat vector of `18 * 3` numbers --- an `X`, `Y` and
+confidence value for each of the 18 body keypoints. We fabricate 40 frames of a
+side-on walker whose legs swing in anti-phase, and write them to a temporary
+directory to mimic a real OpenPose run.
+
+```{r synthesize}
+parts <- c("nose","neck","Rshoulder","Relbow","Rwrist","Lshoulder","Lelbow",
+           "Lwrist","Rhip","Rknee","Rankle","Lhip","Lknee","Lankle",
+           "Reye","Leye","Rear","Lear")
+bx <- c(0,0,-.25,-.3,-.32,.25,.3,.32,-.18,-.2,-.22,.18,.2,.22,-.05,.05,-.1,.1)
+by <- c(-.3,0,.05,.5,.95,.05,.5,.95,1,1.65,2.28,1,1.65,2.28,-.35,-.35,-.3,-.3)
+
+n <- 40
+swing <- 0.45 * sin(seq(0, 4 * pi, length.out = n))
+dir <- file.path(tempdir(), "openpose_json")
+dir.create(dir, showWarnings = FALSE)
+
+files <- character(n)
+for (i in seq_len(n)) {
+  fx <- bx; fy <- by
+  fx[11] <- bx[11] - swing[i];       fx[14] <- bx[14] + swing[i]        # ankles
+  fx[10] <- bx[10] - 0.5 * swing[i]; fx[13] <- bx[13] + 0.5 * swing[i]  # knees
+  frame <- as.numeric(t(cbind(fx, fy, 1)))     # row-major X, Y, P per keypoint
+  files[i] <- file.path(dir, sprintf("frame_%04d.json", i))
+  writeLines(rjson::toJSON(frame), files[i])
+}
+```
+
+## Import and reshape
+
+`import_json()` reads a batch of frame files into a list of
+keypoint-by-`c("X", "Y", "P")` matrices; `reshaping()` stacks them into separate
+`x`, `y` and confidence matrices with one row per frame and one column per
+keypoint.
+
+```{r import}
+keypoints <- import_json(sort(files))
+length(keypoints)        # one matrix per frame
+dim(keypoints[[1]])      # 18 keypoints x (X, Y, P)
+
+raw <- reshaping(keypoints)
+dim(raw$x)               # frames x keypoints
+```
+
+## Normalise
+
+`normalize()` re-expresses every keypoint relative to the neck and divides by the
+hip-neck distance, so that camera position and distance to the subject drop out.
+
+```{r normalize}
+pose <- normalize(raw)
+range(pose$x[, "neck"])  # the neck sits at the origin
+```
+
+## Inspect segment lengths and joint angles
+
+A few helpers read directly off the reshaped data. `distance()` returns the
+Euclidean distance between two keypoints (a segment length), while `hdegree()`
+and `kdegree()` return hip and knee joint angles from three keypoints.
+
+```{r features}
+thigh <- distance(pose, "Rhip", "Rknee", 1:n)   # right thigh length per frame
+summary(thigh)
+
+kdegree(pose, 9, 10, 11, 10)   # right knee angle in frame 10
+hdegree(pose, 2, 9, 10, 10)    # right hip angle in frame 10
+```
+
+`anomaly()` flags values more than `k` standard deviations from the mean of a
+numeric series --- handy for spotting an implausible segment length or stride
+width before correction.
+
+```{r anomaly}
+gap <- distance(pose, "Rankle", "Lankle", 1:n)
+flags <- anomaly(gap, k = 2)
+sum(flags$caselist)            # number of flagged frames
+```
+
+## Detect and correct anomalies
+
+`posefixer()` is the main entry point. It runs the full
+detect-correct-impute-smooth workflow and returns the cleaned trajectories in
+the same `x`/`y`/`p` structure. The `race` argument selects the reference
+anatomical proportions and `fps` is the frame rate of the source video. If a
+recording fails the quality criteria the function returns `NA` instead.
+
+```{r posefixer}
+fixed <- posefixer(pose, race = 1, fps = 25)
+str(fixed, max.level = 1)
+```
+
+## Visualise
+
+`plt.segment()` draws the skeleton for one frame on top of a scatter of its
+keypoints, and `diplay_frames()` lays out a sequence of frames.
+
+```{r plot-frame}
+plot(fixed$x[10, ], fixed$y[10, ], ylim = c(2.5, -0.5), asp = 1, pch = 19,
+     xlab = "x", ylab = "y", main = "Corrected pose, frame 10")
+plt.segment(fixed$x[10, ], fixed$y[10, ])
+```
+
+```{r plot-sequence}
+op <- graphics::par(no.readonly = TRUE)
+diplay_frames(list(x = fixed$x[c(1, 11, 21, 31), ],
+                   y = fixed$y[c(1, 11, 21, 31), ]),
+              layout = c(1, 4), xlim = c(-1, 1), ylim = c(2.5, -0.5))
+graphics::par(op)
+```
+
+## References
+
+Sugiyama Y, Uno K, Matsui Y (2023). Types of anomalies in two-dimensional
+video-based gait analysis in uncontrolled environments. *PLOS Computational
+Biology* 19:e1009989. <https://doi.org/10.1371/journal.pcbi.1009989>
